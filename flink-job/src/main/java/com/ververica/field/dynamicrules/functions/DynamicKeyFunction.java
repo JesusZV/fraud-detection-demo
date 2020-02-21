@@ -19,7 +19,6 @@
 package com.ververica.field.dynamicrules.functions;
 
 import static com.ververica.field.dynamicrules.functions.ProcessingUtils.handleRuleBroadcast;
-
 import com.ververica.field.dynamicrules.Keyed;
 import com.ververica.field.dynamicrules.KeysExtractor;
 import com.ververica.field.dynamicrules.Rule;
@@ -40,11 +39,14 @@ import org.apache.flink.util.Collector;
 
 /** Implements dynamic data partitioning based on a set of broadcasted rules. */
 @Slf4j
-public class DynamicKeyFunction
-    extends BroadcastProcessFunction<Transaction, Rule, Keyed<Transaction, String, Integer>> {
+public class DynamicKeyFunction extends BroadcastProcessFunction<Transaction, Rule, Keyed<Transaction, String, Integer>> {
 
   private RuleCounterGauge ruleCounterGauge;
 
+  /**
+   * Inicializa una nueva instancia de RuleCounterGauge y la asigna al metodo gauge
+   * @param parameters
+   */
   @Override
   public void open(Configuration parameters) {
     ruleCounterGauge = new RuleCounterGauge();
@@ -52,44 +54,40 @@ public class DynamicKeyFunction
   }
 
   @Override
-  public void processElement(
-      Transaction event, ReadOnlyContext ctx, Collector<Keyed<Transaction, String, Integer>> out)
-      throws Exception {
-    ReadOnlyBroadcastState<Integer, Rule> rulesState =
-        ctx.getBroadcastState(Descriptors.rulesDescriptor);
+  public void processElement(Transaction event, ReadOnlyContext ctx, Collector<Keyed<Transaction, String, Integer>> out) throws Exception {
+    //Leyendo el estado  de rules
+    ReadOnlyBroadcastState<Integer, Rule> rulesState = ctx.getBroadcastState(Descriptors.rulesDescriptor);
     forkEventForEachGroupingKey(event, rulesState, out);
   }
 
-  private void forkEventForEachGroupingKey(
-      Transaction event,
-      ReadOnlyBroadcastState<Integer, Rule> rulesState,
-      Collector<Keyed<Transaction, String, Integer>> out)
-      throws Exception {
+  private void forkEventForEachGroupingKey(Transaction event, ReadOnlyBroadcastState<Integer, Rule> rulesState, Collector<Keyed<Transaction, String, Integer>> out) throws Exception {
     int ruleCounter = 0;
+
     for (Map.Entry<Integer, Rule> entry : rulesState.immutableEntries()) {
       final Rule rule = entry.getValue();
-      out.collect(
-          new Keyed<>(
-              event, KeysExtractor.getKey(rule.getGroupingKeyNames(), event), rule.getRuleId()));
+      out.collect(new Keyed<>(event, KeysExtractor.getKey(rule.getGroupingKeyNames(), event), rule.getRuleId()));
       ruleCounter++;
     }
+
     ruleCounterGauge.setValue(ruleCounter);
   }
 
   @Override
-  public void processBroadcastElement(
-      Rule rule, Context ctx, Collector<Keyed<Transaction, String, Integer>> out) throws Exception {
+  public void processBroadcastElement(Rule rule, Context ctx, Collector<Keyed<Transaction, String, Integer>> out) throws Exception {
+
     log.info("{}", rule);
-    BroadcastState<Integer, Rule> broadcastState =
-        ctx.getBroadcastState(Descriptors.rulesDescriptor);
+    BroadcastState<Integer, Rule> broadcastState = ctx.getBroadcastState(Descriptors.rulesDescriptor);
+
     handleRuleBroadcast(rule, broadcastState);
+
     if (rule.getRuleState() == RuleState.CONTROL) {
       handleControlCommand(rule.getControlType(), broadcastState);
     }
+
   }
 
-  private void handleControlCommand(
-      ControlType controlType, BroadcastState<Integer, Rule> rulesState) throws Exception {
+  private void handleControlCommand(ControlType controlType, BroadcastState<Integer, Rule> rulesState) throws Exception {
+
     switch (controlType) {
       case DELETE_RULES_ALL:
         Iterator<Entry<Integer, Rule>> entriesIterator = rulesState.iterator();
@@ -100,10 +98,10 @@ public class DynamicKeyFunction
         }
         break;
     }
+
   }
 
   private static class RuleCounterGauge implements Gauge<Integer> {
-
     private int value = 0;
 
     public void setValue(int value) {
@@ -115,4 +113,5 @@ public class DynamicKeyFunction
       return value;
     }
   }
+
 }

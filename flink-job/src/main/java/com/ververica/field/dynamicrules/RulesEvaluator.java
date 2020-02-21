@@ -65,7 +65,6 @@ public class RulesEvaluator {
   public void run() throws Exception {
 
     RulesSource.Type rulesSourceType = getRulesSourceType();
-
     boolean isLocal = config.get(LOCAL_EXECUTION);
 
     // Environment setup
@@ -73,39 +72,35 @@ public class RulesEvaluator {
 
     // Streams setup
     DataStream<Rule> rulesUpdateStream = getRulesUpdateStream(env);
-    DataStream<Transaction> transactions = getTransactionsStream(env);
-
     BroadcastStream<Rule> rulesStream = rulesUpdateStream.broadcast(Descriptors.rulesDescriptor);
+
+    //Stream principal
+    DataStream<Transaction> transactions = getTransactionsStream(env);
 
     // Processing pipeline setup
     DataStream<Alert> alerts =
+
+            //Part1
         transactions
             .connect(rulesStream)
             .process(new DynamicKeyFunction())
             .uid("DynamicKeyFunction")
             .name("Dynamic Partitioning Function")
             .keyBy((keyed) -> keyed.getKey())
+
+            //Part 2
             .connect(rulesStream)
             .process(new DynamicAlertFunction())
             .uid("DynamicAlertFunction")
             .name("Dynamic Rule Evaluation Function");
 
-    DataStream<String> allRuleEvaluations =
-        ((SingleOutputStreamOperator<Alert>) alerts).getSideOutput(Descriptors.demoSinkTag);
-
-    DataStream<Long> latency =
-        ((SingleOutputStreamOperator<Alert>) alerts).getSideOutput(Descriptors.latencySinkTag);
-
-    DataStream<Rule> currentRules =
-        ((SingleOutputStreamOperator<Alert>) alerts).getSideOutput(Descriptors.currentRulesSinkTag);
-
-    alerts.print().name("Alert STDOUT Sink");
-    allRuleEvaluations.print().setParallelism(1).name("Rule Evaluation Sink");
-
+    // We need toe review this part more in depth
+    /*
+    DataStream<String> allRuleEvaluations = ((SingleOutputStreamOperator<Alert>) alerts).getSideOutput(Descriptors.demoSinkTag);
+    DataStream<Long> latency = ((SingleOutputStreamOperator<Alert>) alerts).getSideOutput(Descriptors.latencySinkTag);
+    DataStream<Rule> currentRules = ((SingleOutputStreamOperator<Alert>) alerts).getSideOutput(Descriptors.currentRulesSinkTag);
     DataStream<String> alertsJson = AlertsSink.alertsStreamToJson(alerts);
     DataStream<String> currentRulesJson = CurrentRulesSink.rulesStreamToJson(currentRules);
-
-    currentRulesJson.print();
 
     alertsJson
         .addSink(AlertsSink.createAlertsSink(config))
@@ -119,6 +114,7 @@ public class RulesEvaluator {
             .aggregate(new AverageAggregate())
             .map(String::valueOf);
     latencies.addSink(LatencySink.createLatencySink(config));
+     */
 
     env.execute("Fraud Detection Engine");
   }
@@ -137,14 +133,19 @@ public class RulesEvaluator {
         new SimpleBoundedOutOfOrdernessTimestampExtractor<>(config.get(OUT_OF_ORDERNESS)));
   }
 
+  /**
+   * Crea el source del stream de reglas (Kafka, socket etc) y deserializa el Json o el texto
+   * @param env
+   * @return
+   * @throws IOException
+   */
   private DataStream<Rule> getRulesUpdateStream(StreamExecutionEnvironment env) throws IOException {
 
     RulesSource.Type rulesSourceEnumType = getRulesSourceType();
-
-    SourceFunction<String> rulesSource = RulesSource.createRulesSource(config);
-    DataStream<String> rulesStrings =
-        env.addSource(rulesSource).name(rulesSourceEnumType.getName()).setParallelism(1);
+    SourceFunction<String> rulesSource = RulesSource.createRulesSource(config); //Obtiene si se va a recibir el stream de kafka o de un socket
+    DataStream<String> rulesStrings = env.addSource(rulesSource).name(rulesSourceEnumType.getName()).setParallelism(1);
     return RulesSource.stringsStreamToRules(rulesStrings);
+
   }
 
   private RulesSource.Type getRulesSourceType() {
@@ -152,8 +153,7 @@ public class RulesEvaluator {
     return RulesSource.Type.valueOf(rulesSource.toUpperCase());
   }
 
-  private StreamExecutionEnvironment configureStreamExecutionEnvironment(
-      RulesSource.Type rulesSourceEnumType, boolean isLocal) {
+  private StreamExecutionEnvironment configureStreamExecutionEnvironment(RulesSource.Type rulesSourceEnumType, boolean isLocal) {
     Configuration flinkConfig = new Configuration();
     flinkConfig.setBoolean(ConfigConstants.LOCAL_START_WEBSERVER, true);
 
@@ -171,8 +171,7 @@ public class RulesEvaluator {
     return env;
   }
 
-  private static class SimpleBoundedOutOfOrdernessTimestampExtractor<T extends Transaction>
-      extends BoundedOutOfOrdernessTimestampExtractor<T> {
+  private static class SimpleBoundedOutOfOrdernessTimestampExtractor<T extends Transaction> extends BoundedOutOfOrdernessTimestampExtractor<T> {
 
     public SimpleBoundedOutOfOrdernessTimestampExtractor(int outOfOrderdnessMillis) {
       super(Time.of(outOfOrderdnessMillis, TimeUnit.MILLISECONDS));
@@ -184,8 +183,7 @@ public class RulesEvaluator {
     }
   }
 
-  private void configureRestartStrategy(
-      StreamExecutionEnvironment env, RulesSource.Type rulesSourceEnumType) {
+  private void configureRestartStrategy(StreamExecutionEnvironment env, RulesSource.Type rulesSourceEnumType) {
     switch (rulesSourceEnumType) {
       case SOCKET:
         env.setRestartStrategy(
@@ -198,7 +196,11 @@ public class RulesEvaluator {
     }
   }
 
+  /**
+   * Contiene la definicion de los Descriptors para estado
+   */
   public static class Descriptors {
+
     public static final MapStateDescriptor<Integer, Rule> rulesDescriptor =
         new MapStateDescriptor<>(
             "rules", BasicTypeInfo.INT_TYPE_INFO, TypeInformation.of(Rule.class));
@@ -207,5 +209,6 @@ public class RulesEvaluator {
     public static final OutputTag<Long> latencySinkTag = new OutputTag<Long>("latency-sink") {};
     public static final OutputTag<Rule> currentRulesSinkTag =
         new OutputTag<Rule>("current-rules-sink") {};
+
   }
 }

@@ -49,9 +49,7 @@ import org.apache.flink.util.Collector;
 
 /** Implements main rule evaluation and alerting logic. */
 @Slf4j
-public class DynamicAlertFunction
-    extends KeyedBroadcastProcessFunction<
-        String, Keyed<Transaction, String, Integer>, Rule, Alert> {
+public class DynamicAlertFunction extends KeyedBroadcastProcessFunction<String, Keyed<Transaction, String, Integer>, Rule, Alert> {
 
   private static final String COUNT = "COUNT_FLINK";
   private static final String COUNT_WITH_RESET = "COUNT_WITH_RESET_FLINK";

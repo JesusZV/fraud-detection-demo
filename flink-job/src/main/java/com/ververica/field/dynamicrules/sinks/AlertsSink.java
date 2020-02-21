@@ -23,6 +23,7 @@ import static com.ververica.field.config.Parameters.ALERTS_TOPIC;
 import static com.ververica.field.config.Parameters.GCP_PROJECT_NAME;
 import static com.ververica.field.config.Parameters.GCP_PUBSUB_ALERTS_SUBSCRIPTION;
 
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
 import com.ververica.field.config.Config;
 import com.ververica.field.dynamicrules.Alert;
 import com.ververica.field.dynamicrules.KafkaUtils;
@@ -34,7 +35,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.connectors.gcp.pubsub.PubSubSink;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
+
 
 public class AlertsSink {
 

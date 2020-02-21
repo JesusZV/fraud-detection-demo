@@ -30,8 +30,7 @@ public class KeysExtractor {
    * @param keyNames list of field names
    * @param object target for values extraction
    */
-  public static String getKey(List<String> keyNames, Object object)
-      throws NoSuchFieldException, IllegalAccessException {
+  public static String getKey(List<String> keyNames, Object object) throws NoSuchFieldException, IllegalAccessException {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
     if (keyNames.size() > 0) {
@@ -44,11 +43,16 @@ public class KeysExtractor {
       }
     }
     sb.append("}");
+
+    System.out.println("***************  ASI ES COMO QUEDA EL OBJETO FINAL *********************");
+    System.out.println(sb.toString());
+    System.out.println("************************************************************************");
+
+
     return sb.toString();
   }
 
-  private static void appendKeyValue(StringBuilder sb, Object object, String fieldName)
-      throws IllegalAccessException, NoSuchFieldException {
+  private static void appendKeyValue(StringBuilder sb, Object object, String fieldName) throws IllegalAccessException, NoSuchFieldException {
     sb.append(fieldName);
     sb.append("=");
     sb.append(FieldsExtractor.getFieldAsString(object, fieldName));
